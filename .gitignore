@@ -1,0 +1,23 @@
+# Environment and secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+
+# Local logs / temp
+*.log
+tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

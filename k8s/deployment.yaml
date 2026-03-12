@@ -1,0 +1,270 @@
+---
+# ── Namespace ──────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edu-rag
+
+---
+# ── ConfigMap ──────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edu-rag-config
+  namespace: edu-rag
+data:
+  APP_NAME: "EDU-RAG"
+  DEBUG: "false"
+  EMBEDDING_MODEL: "text-embedding-3-large"
+  EMBEDDING_DIMENSIONS: "3072"
+  LLM_MODEL: "gpt-4o"
+  TOP_K_RETRIEVAL: "20"
+  TOP_K_RERANK: "5"
+
+---
+# ── Secret (populate with real values) ────────────────────────────────────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edu-rag-secrets
+  namespace: edu-rag
+type: Opaque
+stringData:
+  SECRET_KEY: "REPLACE_WITH_STRONG_SECRET"
+  OPENAI_API_KEY: "REPLACE"
+  ANTHROPIC_API_KEY: "REPLACE"
+  PINECONE_API_KEY: "REPLACE"
+  DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres-service:5432/edurag"
+  REDIS_URL: "redis://redis-service:6379/0"
+  CELERY_BROKER_URL: "redis://redis-service:6379/1"
+  CELERY_RESULT_BACKEND: "redis://redis-service:6379/2"
+
+---
+# ── Backend Deployment ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: edu-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: edu-rag-backend:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: edu-rag-config
+            - secretRef:
+                name: edu-rag-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+---
+# ── Backend HPA ────────────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: edu-rag
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# ── Backend Service ────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: edu-rag
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+# ── Celery Ingestion Worker ────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-ingestion
+  namespace: edu-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-ingestion
+  template:
+    metadata:
+      labels:
+        app: celery-ingestion
+    spec:
+      containers:
+        - name: worker
+          image: edu-rag-backend:latest
+          command: ["celery", "-A", "app.tasks.celery_app", "worker", "-Q", "ingestion", "-c", "2"]
+          envFrom:
+            - configMapRef:
+                name: edu-rag-config
+            - secretRef:
+                name: edu-rag-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+
+---
+# ── Celery Memory Worker ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-memory
+  namespace: edu-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-memory
+  template:
+    metadata:
+      labels:
+        app: celery-memory
+    spec:
+      containers:
+        - name: worker
+          image: edu-rag-backend:latest
+          command: ["celery", "-A", "app.tasks.celery_app", "worker", "-Q", "memory", "-c", "4"]
+          envFrom:
+            - configMapRef:
+                name: edu-rag-config
+            - secretRef:
+                name: edu-rag-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+
+---
+# ── Frontend Deployment ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: edu-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: edu-rag-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+---
+# ── Frontend Service ───────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: edu-rag
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+# ── Ingress ────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edu-rag-ingress
+  namespace: edu-rag
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - edurag.yourdomain.com
+      secretName: edu-rag-tls
+  rules:
+    - host: edurag.yourdomain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 80

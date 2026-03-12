@@ -1,0 +1,57 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# # ── Auth ──────────────────────────────────────────────────────────────────────
+# python-jose[cryptography]==3.3.0
+# passlib[bcrypt]==1.7.4
+# pydantic[email]==2.10.2
+# pydantic-settings==2.6.1
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pydantic[email]==2.10.2
+pydantic-settings==2.6.1
+
+# ── LLM / Embeddings ──────────────────────────────────────────────────────────
+# openai==1.57.0                    # [DEPRECATED] Using Groq instead
+# anthropic==0.39.0                 # [DEPRECATED] Using Groq instead
+groq>=0.4.0                         # Groq API - Llama models
+sentence-transformers>=2.2.0        # Local embeddings - MiniLM
+torch>=2.0.0                       # CPU-only (installed via Dockerfile with --index-url)
+tiktoken==0.8.0
+tenacity==9.0.0
+
+# ── Vector Store ──────────────────────────────────────────────────────────────
+pinecone==5.4.2
+
+# ── PDF Processing ────────────────────────────────────────────────────────────
+pymupdf==1.24.14
+pdfplumber==0.11.4
+Pillow==11.0.0
+camelot-py[cv]==0.11.0
+
+# ── AWS ───────────────────────────────────────────────────────────────────────
+boto3==1.35.74
+
+# ── Redis / Cache ─────────────────────────────────────────────────────────────
+redis[asyncio]==5.2.1
+
+# ── Task Queue ────────────────────────────────────────────────────────────────
+celery==5.4.0
+flower==2.0.1
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+numpy==2.2.0
+httpx==0.28.0
+python-dotenv==1.0.1
+
