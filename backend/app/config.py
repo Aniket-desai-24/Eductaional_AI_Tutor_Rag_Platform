@@ -35,8 +35,8 @@ class Settings(BaseSettings):
 
     # ── Groq (Llama) ───────────────────────────────────────────────────────────
     GROQ_API_KEY: str = ""
-    LLM_MODEL: str = "meta-llama/llama-4-maverick-17b-128e-instruct"      # Groq Maverick
-    VISION_MODEL: str = "meta-llama/llama-4-maverick-17b-128e-instruct"  # Groq Maverick (vision-capable)
+    LLM_MODEL: str = "llama-3.3-70b-versatile"                           # Groq text model
+    VISION_MODEL: str = "meta-llama/llama-4-maverick-17b-128e-instruct"  # Groq vision model
 
     # ── Embeddings (Sentence Transformers) ─────────────────────────────────────
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"       # Sentence Transformers MiniLM
