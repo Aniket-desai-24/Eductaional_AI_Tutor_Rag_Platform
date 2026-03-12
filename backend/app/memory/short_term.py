@@ -12,27 +12,10 @@ from typing import Optional
 
 import redis.asyncio as aioredis
 
-# [DEPRECATED] OpenAI - Using Groq instead
-# import openai
-
-import groq
-
 from app.config import settings
+from app.llm.groq_http import chat_completion_text
 
 logger = logging.getLogger(__name__)
-
-# Groq client for memory compression
-_groq_client = None
-
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured for short-term memory")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
 
 # [DEPRECATED] OpenAI client
 # import openai
@@ -138,10 +121,8 @@ async def _summarise_turns(turns: list[dict]) -> str:
     Use Groq Llama to create a concise summary of conversation turns.
     """
     transcript = "\n".join(f"{t['role'].upper()}: {t['content']}" for t in turns)
-    client = _get_groq_client()
     try:
-        resp = await client.chat.completions.create(
-            model=settings.LLM_MODEL,
+        response_text = await chat_completion_text(
             messages=[
                 {
                     "role": "system",
@@ -150,9 +131,10 @@ async def _summarise_turns(turns: list[dict]) -> str:
                 },
                 {"role": "user", "content": transcript},
             ],
+            model=settings.LLM_MODEL,
             max_tokens=300,
         )
-        return resp.choices[0].message.content.strip()
+        return response_text.strip()
     except Exception as e:
         logger.warning(f"History compression failed: {e}")
         return "Previous conversation covered various educational topics."

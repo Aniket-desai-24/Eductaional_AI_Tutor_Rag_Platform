@@ -10,28 +10,13 @@ from __future__ import annotations
 import asyncio
 import logging
 
-# [DEPRECATED] OpenAI - Using Groq instead
-# import openai
-import groq
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
+from app.llm.groq_http import chat_completion_text
 
 logger = logging.getLogger(__name__)
-
-# Groq client for HyDE LLM generation
-_groq_client = None
-
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured for HyDE")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
 
 # [DEPRECATED] OpenAI client
 # _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -64,14 +49,12 @@ async def _generate_hypothetical_answer(question: str, context_hint: str = "") -
         user = f"Subject: {context_hint}\nQuestion: {question}"
 
     try:
-        client = _get_groq_client()
-        resp = await client.chat.completions.create(
-            model=settings.LLM_MODEL,
+        return (await chat_completion_text(
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            model=settings.LLM_MODEL,
             max_tokens=200,
             temperature=0.1,
-        )
-        return resp.choices[0].message.content.strip()
+        )).strip()
     except Exception as e:
         logger.warning(f"HyDE generation failed: {e}")
         return question   # fallback to original question
@@ -156,4 +139,3 @@ async def embed_query_with_hyde(
     hypo_vec = await _embed_text(hypo_answer)
     merged = _merge_vectors(query_vec, hypo_vec, alpha=1 - hyde_weight)
     return merged
-

@@ -16,11 +16,11 @@ from typing import Optional
 # from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from sentence_transformers import SentenceTransformer
-import groq
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.config import settings
 from app.ingestion.chunker import Chunk
+from app.llm.groq_http import chat_completion_text
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +39,6 @@ def _get_embedding_model():
 
 # [DEPRECATED] OpenAI client
 # _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-# Groq client for vision captioning
-_groq_client = None
-
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured for vision")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
 
 EMBED_BATCH_SIZE = 100
 CAPTION_CONCURRENCY = 5  # simultaneous vision calls
@@ -162,13 +149,12 @@ async def _caption_image(image_bytes: bytes, extension: str, context: str) -> st
         },
     ]
 
-    client = _get_groq_client()
-    response = await client.chat.completions.create(
-        model=settings.VISION_MODEL,
+    response_text = await chat_completion_text(
         messages=messages,
+        model=settings.VISION_MODEL,
         max_tokens=300,
     )
-    return response.choices[0].message.content.strip()
+    return response_text.strip()
 
 
 async def caption_image_chunks(chunks: list[Chunk]) -> list[Chunk]:
@@ -198,4 +184,3 @@ async def caption_image_chunks(chunks: list[Chunk]) -> list[Chunk]:
 
     await asyncio.gather(*[caption_one(c) for c in image_chunks])
     return chunks
-

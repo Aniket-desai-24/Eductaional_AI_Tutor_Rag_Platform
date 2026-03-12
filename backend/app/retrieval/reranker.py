@@ -12,27 +12,10 @@ import json
 import logging
 from typing import Optional
 
-# [DEPRECATED] OpenAI - Using Groq instead
-# import openai
-
-import groq
-
 from app.config import settings
+from app.llm.groq_http import chat_completion_text
 
 logger = logging.getLogger(__name__)
-
-# Groq client for re-ranking
-_groq_client = None
-
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured for reranker")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
 
 # [DEPRECATED] OpenAI client
 # _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -53,14 +36,12 @@ async def _score_pair(question: str, chunk_text: str) -> float:
         "Respond with a single integer from 0 (not relevant) to 10 (perfectly relevant)."
     )
     try:
-        client = _get_groq_client()
-        resp = await client.chat.completions.create(
-            model=settings.LLM_MODEL,
+        raw = (await chat_completion_text(
             messages=[{"role": "user", "content": prompt}],
+            model=settings.LLM_MODEL,
             max_tokens=5,
             temperature=0,
-        )
-        raw = resp.choices[0].message.content.strip()
+        )).strip()
         score = float(raw.split()[0]) / 10.0
         return min(max(score, 0.0), 1.0)
     except Exception as e:

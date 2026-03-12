@@ -11,31 +11,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-# [DEPRECATED] OpenAI - Using Groq instead
-# import openai
-
-import groq
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.models import UserMemoryProfile, PastInteraction
+from app.llm.groq_http import chat_completion_text
 
 logger = logging.getLogger(__name__)
-
-# Groq client for profile analysis
-_groq_client = None
-
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured for long-term memory")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
 
 # [DEPRECATED] OpenAI client
 # _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -146,9 +129,7 @@ async def update_profile_from_session(
     transcript = "\n".join(f"{t['role'].upper()}: {t['content'][:300]}" for t in session_turns[:20])
 
     try:
-        client = _get_groq_client()
-        resp = await client.chat.completions.create(
-            model=settings.LLM_MODEL,
+        response_text = await chat_completion_text(
             messages=[
                 {
                     "role": "system",
@@ -164,11 +145,12 @@ async def update_profile_from_session(
                 },
                 {"role": "user", "content": transcript},
             ],
+            model=settings.LLM_MODEL,
             max_tokens=400,
             temperature=0,
         )
         import json
-        analysis = json.loads(resp.choices[0].message.content.strip())
+        analysis = json.loads(response_text.strip())
     except Exception as e:
         logger.warning(f"Profile analysis failed: {e}")
         return

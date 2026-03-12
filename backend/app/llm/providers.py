@@ -10,58 +10,29 @@ import asyncio
 import logging
 from typing import AsyncIterator, Optional
 
-# [DEPRECATED] OpenAI - Using Groq instead
-# import openai
-# from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
-import groq
+import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.config import settings
+from app.llm.groq_http import chat_completion_stream
 
 logger = logging.getLogger(__name__)
-
-# Groq client setup
-_groq_client = None
-
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not configured")
-        _groq_client = groq.AsyncClient(api_key=settings.GROQ_API_KEY)
-    return _groq_client
-
-# [DEPRECATED] Lazy import Anthropic to avoid hard dependency
-# _anthropic = None
-# def _get_anthropic():
-#     global _anthropic
-#     if _anthropic is None and settings.ANTHROPIC_API_KEY:
-#         import anthropic
-#         _anthropic = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-#     return _anthropic
-
 
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((groq.RateLimitError, groq.APITimeoutError)),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
     reraise=True,
 )
 async def _stream_groq(messages: list[dict], max_tokens: int = 1000) -> AsyncIterator[str]:
     """Stream LLM response using Groq (Llama)."""
-    client = _get_groq_client()
-    stream = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
+    async for token in chat_completion_stream(
         messages=messages,
+        model=settings.LLM_MODEL,
         max_tokens=max_tokens,
         temperature=0.1,
-        stream=True,
-    )
-    async for chunk in stream:
-        delta = chunk.choices[0].delta
-        if delta.content:
-            yield delta.content
+    ):
+        yield token
 
 
 # [DEPRECATED] OpenAI streaming implementation
